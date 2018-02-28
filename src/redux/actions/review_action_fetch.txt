@@ -1,0 +1,13 @@
+- Để lấy dữ liệu từ một nguồn url nào đó, hãy sử dụng fetch trong API npm fetch-cross, nó cũng là một promise-based
+- Khi lấy dữ liệu hãy chia ra làm nhiều ACTIONS tương ứng với từng trường hợp trong REDUCER. Chi tiết là:
+	+ REQUEST_POST: yêu cầu dữ liệu - trường hợp chờ
+	+ RECEIVE_POSTS: nhận dữ liệu - trường hợp đã nhận
+	+ INVALIDATE_SUBREDDIT: kiểm tra dữ liệu - trường ko hợp lệ
+	+ SELECT_SUBREDDIT: chọn dữ liệu load - trường hợp chia làm nhiều category
+- REDUCER được thiết kế làm 3 functions: 
+	+ selectedSubreddit() - case: SELECT_SUBREDDIT: chọn dữ liệu
+	+ posts() Phân tích dữ liệu khi đã được chọn
+		- case: INVALIDATE_SUBREDDIT
+		- case: REQUEST_POSTS
+		- case: RECEIVE_POSTS
+	+ postsBySubreddit() đồng ý hiển thị dữ liệu

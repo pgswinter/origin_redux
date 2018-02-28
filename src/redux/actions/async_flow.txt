@@ -1,0 +1,12 @@
+Với không có middleware, Redux store chỉ hỗ trợ  synchronous data flow. Đây là cái bạn lấy từ default(mặc định) với createStore()
+
+Bạn có thể nâng cao createStore() với applyMiddleware(). Nó không yêu cầu, nhưng nó để bạn trình diễn  asynchronous actions trong một cách thuận lợi nhất
+
+Asynchronous middleware giống như redux-thunk hoặc redux-promise bọc lấy dispatch() của store và cho phép bạn dispatch những thứ khác hơn cả actions, ví dụ, functions hoặc Promise. Bất kỳ middleware bạn dùng có thể sau đó thông dịch (interpret) bất cứ thứ kì bạn dispatch, và trong lượt, có thể pass actions đến middleware kế tiếp trong chuỗi. Ví dụ, một Promise middleware có thể thông dịch Promise và dispatch một cặp actions asynchronously  bắt đầu/kết thúc trong phản hồi đến mỗi Promise.
+
+Khi middleware cuối cùng trong chuỗi dispatches một action, phải là một đối tượng thuần(plain object). Đây là khi  synchronous Redux data flow diễn ra (takes place).
+
+Next Steps
+
+Bây h bạn đã thấy một ví dụ của middleware có thể làm trong Redux, nó là lúc để học làm thế nào nó làm việc thực sự, và làm thế nào bạn tạo ra cái của bạn. Đi đến phần chi tiết tiếp theo về Middleware
+

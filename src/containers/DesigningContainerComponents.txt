@@ -1,0 +1,174 @@
+Chúng ta sẽ cần một số containers components để connect đến những components hiển thị chính (presentational) đến Redux. Ví dụ Presentational TodoList Component cần một container như VisibleTodoList cái theo dõi đến Redux STORE và biết được làm như nào để áp dụng filter hiển thị hiện tại. Để thay đổi filter hiển thị, chúng ta sẽ cung cấp một FilterLink container component để render một Link, nó sẽ dispatches một action thích hợp (appropriate) để click:
+
+- VisibleTodoList lọc những todos thực thưi để filter hiển thị hiện tại và xuất ra một TodoList
+- FilterLink lấy ra filter hiển thị hiện tại và render một Link
+
+Thiết kế những Components khác
+
+Thỉnh thoảng, nó khó để nói nếu một vài component nên nên trở thành một presentational  component hoặc một container. ví dụ, thỉnh thoảng form và function thực sự bắt cặp với nhau, như trong trường hợp component nhỏ này:
+
+- AddTodo là một input field với Add button
+
+Kĩ thuật chúng ta có thể chia nó thành 2 components nhưng nó có thể đến rất sớm trong lúc này. Nó ổn để trộn hiển thị (presentation) và logic trong một component điều đó là rất nhỏ. Như nó phát triển, nó sẽ trở nên rõ ràng như thế nào nên chúng ta cứ để trộn chung như vậy (leave it mixed)
+
+Triển khai Components
+
+Hãy viết những components! Chúng ta bắt đầu với presentational components để chúng ta không cần nghĩ về binding Redux
+
+Triển khai Presentional Components
+
+Đây là tất cả React components bình thường, nên chúng ta sẽ ko ví dụ chúng chi tiết. Chúng ta viets functional stateless components trừ khi (unless) chúng ta cần dùng local state hoặc licycle methods. Điều này không có nghĩa presentational components phải là những functions - nó chỉ dễ dàng hơn để định nghĩa chúng trong cách này. Nếu và khi ban cần để thêm vào local state, lifecycle methods, haowcj tăng cải thiện hiệu suất, bân có thể chuyển chúng thành classes
+
+components/Todo.js
+import React from 'react'
+import PropTypes from 'prop-types'
+ 
+const Todo = ({ onClick, completed, text }) => (
+  <li
+    onClick={onClick}
+    style={ {
+      textDecoration: completed ? 'line-through' : 'none'
+    }}
+  >
+    {text}
+  </li>
+)
+ 
+Todo.propTypes = {
+  onClick: PropTypes.func.isRequired,
+  completed: PropTypes.bool.isRequired,
+  text: PropTypes.string.isRequired
+}
+ 
+export default Todo
+
+components/TodoList.js
+import React from 'react'
+import PropTypes from 'prop-types'
+import Todo from './Todo'
+ 
+const TodoList = ({ todos, onTodoClick }) => (
+  <ul>
+    {todos.map((todo, index) => (
+      <Todo key={index} {...todo} onClick={() => onTodoClick(index)} />
+    ))}
+  </ul>
+)
+ 
+TodoList.propTypes = {
+  todos: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.number.isRequired,
+      completed: PropTypes.bool.isRequired,
+      text: PropTypes.string.isRequired
+    }).isRequired
+  ).isRequired,
+  onTodoClick: PropTypes.func.isRequired
+}
+ 
+export default TodoList
+
+components/Link.js
+import React from 'react'
+import PropTypes from 'prop-types'
+ 
+const Link = ({ active, children, onClick }) => {
+  if (active) {
+    return <span>{children}</span>
+  }
+ 
+  return (
+    <a
+      href=""
+      onClick={e => {
+        e.preventDefault()
+        onClick()
+      }}
+    >
+      {children}
+    </a>
+  )
+}
+ 
+Link.propTypes = {
+  active: PropTypes.bool.isRequired,
+  children: PropTypes.node.isRequired,
+  onClick: PropTypes.func.isRequired
+}
+ 
+export default Link
+
+components/Footer.js
+import React from 'react'
+import FilterLink from '../containers/FilterLink'
+import { VisibilityFilters } from '../actions'
+ 
+const Footer = () => (
+  <p>
+    Show:
+    {' '}
+    <FilterLink filter={VisibilityFilters.SHOW_ALL}>
+      All
+    </FilterLink>
+    {', '}
+    <FilterLink filter={VisibilityFilters.SHOW_ACTIVE}>
+      Active
+    </FilterLink>
+    {', '}
+    <FilterLink filter={VisibilityFilters.SHOW_COMPLETED}>
+      Completed
+    </FilterLink>
+  </p>
+)
+ 
+export default Footer
+
+Triển khai Container Components
+
+Bây là lúc kết nối (hook up) những presentational components đến Redux bằng cách tạo những containers. Nói theo cách kĩ thuât, một container component chỉ là một React Components dùng store.subcribe() để đọc một phần của Redux state tree and hỗ trợ cung cấp (supply)  props đến một presentational component nó render. Ban có thể viết một container component bằng tay, nhưng chúng tôi đề nghị thay vì tạo ra (generating) các container components bằng thư viện connect() function của React Redux, cái này cũng cấp rất nhiều hữu ích để tối ưu hóa (optimizations) để ngăn chặn (prevent) những render không cần thiết. (Một kết quả của cái này là bạn không nên phải lo lắng về Phản hồi Hiệu suất React của việc triển khai shouldComponentUpdate cho chính bạn)
+
+Để dùng connect(), bạn cần xác định (define) một function đặc biệt được gọi là mapStateToProps, nó cho biết làm thế nào để biến đổi (transform) Redux STORE hiện tại thành props bạn muốn qua (pass to) presentational component ban đang bọc. Ví dụ, VisibleTodoList cần để tính toán todos để qua TodoList, nên chúng ta định nghĩa (define) một function để lọc state.todos theo (according to) state.visibilityFilter, và dùng nó trong mapStateToProps của nó
+
+const getVisibleTodos = (todos, filter) => {
+	switch (filter) {
+	    case 'SHOW_COMPLETED':
+	      return todos.filter(t => t.completed)
+	    case 'SHOW_ACTIVE':
+	      return todos.filter(t => !t.completed)
+	    case 'SHOW_ALL':
+	    default:
+	      return todos
+	}
+}
+
+ 
+const mapStateToProps = state =>  {
+	return {
+		todos: getVisibleTodos(state.todos, state.visibilityFilter)
+	}
+}
+
+Để thêm vào cách đọc state, container components có thể dispatch actions. Trong một fashion giống nhau, bạn có thể xác định một function gọi là mapDispatchToProps() cái nhận phương thức dispatch() và trả về callback props cái bạn muốn tiêm vào presentational component. Ví dụ, chúng ta muốn VisibleTodoList tiêm 1 prop gọi là onTodoClick vào trong TodoList  component, và chúng ta muốn onTodoClick dispatch một TOGGLE_TODO action:
+
+const mapDispatchToProps = dispatch => {
+	return {
+		onTodoClick: id => {
+			dispatch(toggleTodo(id))
+		}
+	}
+}
+
+/ * component có một prop onTodoClick, mình sẽ dùng cái prop này cho ACTION TOGGLE_TODO trong VisibleTodoList. Mình dùng mapDispatchToProps để tiêm cái prop đó để nó dispatch action mà xài
+
+Cuối cùng, chúng ta tạo VisibleTodoList bằng cách tạo connnect() và qua 2 functions này:
+
+import { connect } from 'react-redux'
+
+const VisibleTodoList = connect(
+	mapStateToProps,
+	mapDispatchToProps
+)(TodoList)
+
+export default VisibleTodoList
+
+Đây là phần cơ bản của React Redux API, nhưng đây là một vài tệp và những sức mạnh lựa chọn nên chúng tôi khuyến khích bạn coi lại tài liệu của nó. Trong trường hợp bạn lo lắng về mapStateToProps tạo những đối tượng mới thường xuyên hơn, bạn có thể học về computing derived data với reselect.

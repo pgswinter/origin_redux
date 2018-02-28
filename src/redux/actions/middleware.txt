@@ -1,0 +1,471 @@
+Middleware
+
+Bạn đã thấy middleware trong action trong ví dụ Async Actions. Nếu bạn đã dụng server-side Express và Koa, bạn cũng có thể quen thuộc với ý tưởng của middleware. Trong những frameworks này, middleware là những code bạn có thể đặt giữa framework nhận một yêu cầu, và một framework generating một phản hồi. Ví dụ, Express và Koa middleware có thể thêm CORS headers, logging, compression (nén) và hơn nữa. Tính năng tốt nhất của middleware là nó composable
+
+// *** composable 
+Là một quy tắc thiết kế hệ thống, nó được xử lý với liên kết bên trong của nhiều components. Một composable cấp cao cũng cấp những component có thể được lựa chọn và lắp ráp trong nhiểu kết hợp khác nhau để đáp ứng (satify) cụ thể yêu cầu người dùng. Trong hệ thống thông tin, tính năng tối thiểu đó là tạo ra component composable để trở thành:
++ self-contained: nó có thể triển khai một cách độc lập - lưu ý rằng nó có thể cộng tác với component khác, nhưng những component độc lập có thể thay thế được.
++ stateless: nó xử lý những yêu cầu như một phiên giao dịch độc lập, không liên quan đến bất kì yêu cầu trước đó. Stateless chỉ có một công nghệ, quản lý state và giao dịch hệ thống có thể cũng trở nên composable, nhưng với khó khăn lớn hơn
+// *** composable 
+
+Bạn có thể dùng nhiều middleware độc lập của nhà phát triển thứ 3 trong dự án đơn lẻ.
+
+Redux middleware xử lý những yêu cầu khác hơn Express và Koa middleware, nhưng trong ý tưởng giống nhau. Nó cung cấp một điểm extension thứ ba giữa dispatching một action, và thời điểm nó đạt đến reducer. Mọi người dùng Redux middleware để logging, crash reporting và nói về một asynchronous API, routing và hơn nữa.
+
+Bài viết này được chia thành nhiều phần giới thiệu để giúp bạn hiểu 1 cách trực quan (grok) ý tưởng và một vài ví dụ thực hành để chỉ ra sức mạnh của middleware vào lúc cuối cùng (at the very end). Bạn có thể tìm tháy sự hữu dụng để thay đổi lại và tiến lên giữa chúng, như bạn lật giữa cảm giác buồn chán và hứng khởi.
+
+Hiểu về Middleware
+
+Trong middleware can thể dùng cho nhiều thứ khác nhau, bao gồm asynchronous API calls, nó thực sự quan trọng để bạn hiểu nó đến từ đâu. Chúng tôi sẽ hướng dẫn bạn thông qua quá trình suy nghĩ để dẫn đến middleware, bằng cách sử dụng logging và crash reportinh như những ví dụ
+
+Vấn đề: Logging
+
+Một trong các lợi ích (benegits) của Redux là tạo ra state thay đổi có thể đoán trước (predictable) và có thể thấy được. Mỗi khi một action được dispatched, state mới dược tính toán và lưu lại. State không thể thay đổi bởi chính nó, nó chỉ thây đổi như kết quả của action đặc tả.
+
+Sẽ không được tốt nếu chúng ta logged mỗi action để xảy ra trong ứng dụng, cùng với state đã tính toán sau nó? Khi vài thứ đi sai, chúng ta có thể quay lại nhìn như nhật ký của chúng ta, và tưởng tượng cái action đã làm hư hết state.
+
+ADD_TODO
+	dispatching: Object {type: "ADD_TODO", text: "Use Redux"}
+	next state: Object {visibilityFilter: "SHOW_ALL", todo: Array[1]}
+ADD_TODO
+	dispatching: Object {type: "ADD_TODO", text: "Learn about middleware"}
+	next state: Object {visibilityFilter: "SHOW_ALL", todo: Array[2]}
+COMPLETE_TODO
+	dispatching: Object {type: "COMPLETED_TODO", index: 0}
+	next state: Object {visibilityFilter: "SHOW_ALL", todo: Array[2]}
+SET_VISIBILITY_FILTER
+	dispatching: Object {type: "SET_VISIBILITY_FILTER", filter: "SHOW_COMPLETED"}
+	next state: Object {visibilityFilter: "SHOW_COMPLETED", todo: Array[2]}
+
+Làm thế nào chúng ta tiếp cận điều này với Redux?
+
+Thử cách #1: Logging Manually
+
+Giải pháp ngây thơ nhất là chỉ log action và state kế tiếp của bạn mỗi lần gọi store.dispatch(action). Nó không thực sự là một giải pháp, nhưng chỉ một bước đầu tiên trước thẳng tiến để hiểu vấn đề
+
+Lưu ý:
+
+Nếu bạn dùng react-redux hoặc binding giống nhau, bạn giống như có truy cập chính xác tới store instance trong components của bạn. trong vài đoạn tiếp theo, hãy tưởng tượng bạn pass store xuống rõ ràng.
+
+Nói, bạn gọi điều này khi tạo một todo:
+
+store.dispatch(addTodo('Use Redux'))
+
+Để log action và state, ban có thể thay đổi nó để vài thứ giống như:
+
+let action = addTodo('Use Redux')
+
+console.log('dispatching',action)
+store.dispatch(action)
+console.log('next state', store.getState())
+
+Điều này tạo ra hiệu quả mong muốn (This produces the desired effect), nhưng bank sẽ không muốn làm lại nó nhiều lần
+
+Thử cách 2: Bọc dispatch
+
+Bạn có thể mở rộng logging thành một function
+
+function dispatchAndLog(store, action){
+	console.log('dispatching', action)
+	store.dispatch(action)
+	console.log('next state', store.getState())
+}
+
+Bạn có thể dùng nó bất cứ đâu thay vì store.dispatch():
+
+dispatchAndLog(store, addTodo('Use Redux'))
+
+Chúng ta có thể kết thúc tại đây, nhưng nó không thật sự thuận tiện để import một function đặc biệt mỗi lần
+
+Thử cách 3: Monkeypatching Dispatch
+
+Điều gì nếu chúng ta chỉ thay thế dispatch function trên khởi tạo(instace) store? Redux store chỉ là một object thuần với một vài methods, và chúng ta đang viết JavaScript, nên chúng ta có thể triển khai chỉ monkeypatch dispatch
+
+let next = store.dispatch
+
+store.dispatch = function dispatchAndLog(action) {
+	console.log('dispatching', action)
+	let result = next(action)
+	console.log('next state', store.getState())
+	return result
+}
+
+Điều này thực sự đạt được cái chúng ta muốn. Không vấn đề ở chỗ chúng ta dispatch một action, nó đảm bảo được logged. Monketpatching không bao giờ cảm thấy đúng, nhưng chúng ta có thể sống với điều đó từ bây h.
+
+Vấn đề: Crash Reporting
+
+Cái nếu chúng ta muốn áp dụng hơn một transformation đến dispatch?
+
+Một chuyển đổi hữu ích khác đến từ suy nghĩ của tôi là thông báo JavaScript errors trong sản phẩm. The global window.onerror event là không đáng tin cậy bởi vì nó không cung cấp thông tin stack trong những browsers cũ, cái quan trọng (crucial) để hiểu tại sao lỗi xảy ra.
+
+Sẽ không hữu dụng nếu bất kỳ lúc nào 1 lỗi được trả về (is thrown) như kết quả của dispatching một action, chúng ta sẽ gửi nó đến một crash reporting service như Sentry với stack trace, action là nguyên nhân lỗi và state hiện tại? Cách này dễ hơn nhiều lần để reproduce lỗi trong phát triển
+
+Tuy nhiên, nó quan trọng ở chỗ chúng ta giữ logging và crash reporting tách nhau ra. Lý tưởng là chúng ta muốn chúng trở thành những modules khác nhau, có khả năng in những packages khác nhau. Mặt khác, chúng ta không thể có một hệ sinh thái có những tiện ích như vậy.(Gợi ý: chúng ta dần nhận ra middleware là gì!)
+
+Nếu logging và crash reporting là những tiện ích tách biệt, chúng có thể trông như thế này:
+
+function patchStoreToAddLogging(store) {
+	let next = store.dispatch
+	store.dispatch = function dispatchAndLog(action) {
+		console.log('dispatching', action)
+	    let result = next(action)
+	    console.log('next state', store.getState())
+	    return result
+	}
+}
+
+function patchStoreToAddCrashReporting(store) {
+	let next = store.dispatch
+	store.dispatch = function dispatchAndReportErrors(action) {
+		try {
+	      return next(action)
+	    }catch (err) {
+	      console.error('Caught an exception!', err)
+	      Raven.captureException(err, {
+	        extra: {
+	          action,
+	          state: store.getState()
+	        }
+	      })
+	      throw err
+	    }
+	}
+}
+
+nếu những functions được đưa ra như những modules riêng biệt, chúng ta có thể từ từ dùng chúng để patch store của chúng ta:
+
+patchStoreToAddLogging(store)
+patchStoreToAddCrashReporting(store)
+
+Tới bây h, vẫn chưa tốt
+
+Thứ lần 4: Hidding Monketpatching
+
+Monkeypatching là hack. "Thay thế bất kỳ method bạn thích", loại API gì thế? Hãy tưởng tượng cái cơ bản của để thay thế nó. Trước đó, function của chúng ta thay thế store.dispatch. Cái gì nếu chúng trả về dispatch function thay thế?
+
+function logger(store){
+	let next = store.dispatch
+
+	// Trước đó:
+	// store.dispatch = function dispatchAndLog(action){
+		return function dispatchAndLog(action) {
+		    console.log('dispatching', action)
+		    let result = next(action)
+		    console.log('next state', store.getState())
+		    return result
+	  	}
+	}
+}
+
+Chúng ta có thể cung cấp một helper bên trong Redux cái sẽ áp dụng monkeypatching thực sự như một triể khai chi tiết:
+
+function applyMiddlewareByMonkeypatching(store, middleware){
+	middlewares = middlewares.slice()
+	middlewares.reverse()
+
+	// Biến đối dispatch function với mỗi middleware
+	middlwares.forEach(middleware => 
+		store.dispatch = middleware(store)
+	)
+}
+
+Chúng ta có thể dùng nó để áp dụng nhiều middleware giống như thế này:
+
+applyMiddlewareByMonkeypatching(store, [logger, crashReporter])
+
+Tuy nhiên, nó vẫn là monkeypatching
+Sự thật là chúng ẩn nó bên trong thư viện không thay đổi thực tế này
+
+Thử cách 5: Loại bỏ monkeypatching
+
+Tại sao chúng ta chỉ ghi đè dispatch? Tất nhiên, để có thể gọi nó sau đó, nhưng đây cũng có một nguyên nhân khác: đó là mỗi middleware có thể truy cập (và gọi) wrapped trước đó store.dispatch:
+
+function logger (store){
+	// Phải trỏ đến function trả về bởi middleware trước đó
+	let next = store.dispatch
+	
+	return function dispatchAndLog(action){
+		console.log('dispatching',action)
+		let result = next(action)
+		console.log('next state', store.getState())
+		return result
+	}
+}
+
+Nó là tối thiểu để móc middleware
+
+Nếu applyMiddlewareByMonkeypatching không assign store.dispatch ngay lập tức sau khi xử lý middleware đầu tiên, store.dispatch sẽ giữ trỏ đến function dispatch gốc. Rồi middleware thứ hai cũng sẽ nhảy đến (bound to) function dispatch gốc.
+
+Nhưng đây cũng là cách khác để kích hoạt chaining. Middlware có thể chấp nhận next() dispatch function như một parameter thay vì đọc nó từ khởi tạo store.
+
+function logger(store) {
+	return function wrapDispatchToAddLogging(next) {
+		return function dispatchAndLog(action) {
+			console.log('dispatching', action)
+			let result = next(action)
+			console.log('next state', store.getState())
+			return result
+		}
+	}
+}
+
+Chúng ta cần đi sau hơn tại lúc này, nên nó có thể lấ một lúc để làm cho điều này có lý (make sense). The function chảy như thác cảm giác sợ hãi. ES6 arrow functions sẽ lau khô nước mắt bạn:
+
+const logger = store => next => action => {
+	console.log('dispatching', action)
+	let result = next(action)
+	console.log('next state', store.getState())
+	return result
+}
+
+const crashReporter = store => next => action => {
+  try {
+    return next(action)
+  } catch (err) {
+    console.error('Caught an exception!', err)
+    Raven.captureException(err, {
+      extra: {
+        action,
+        state: store.getState()
+      }
+    })
+    throw err
+  }
+}
+
+Đây là chính xác cái Redux middleware trông như thế nào
+
+Bây h middleware lấy next() dispatch function, và trả về một dispatch function, từ đó lấy next() để middleware đến bên trái, và hơn thế nữa. Nó vẫn hữu dụng để truy cập đến những phương thức store như getState(), nên store ở lại được kích hoạt như đối số cấp cao
+
+Thử cách 6: Sử dụng middleware 1 cách tự tin(Naïvely )
+
+Thay vì applyMiddlewareByMonkeypatching(), chúng ta có thể viết applyMiddleware() đầu tiên lấy cái cuối cùng, bọc tất cả dispatch() function, và trả về một copy của store dùng nó:
+
+// Cảnh báo: Triển khai tự tin
+// Đó là không Redux API
+
+function applyMiddleware(store, middlewares) {
+	middlewares = middlewares.slice()
+	// slice() - copy shallow array of its portion
+	middlewares.reverse()
+	// reserve() - reserve array [1,2,3] -> [3,2,1]
+	let dispatch = store.dispatch
+	middleware.forEach(middleware=>
+		dispatch = middleware(store)(dispatch)
+	)
+	return Object.assign({},store,{dispatch})
+}
+
+Triển khai của applyMiddleware cái kêt với Redux là giống nhau, nhưng khác nhau trong 3 khía cạnh:
+
+- Nó chỉ phơi bày một phần nhỏ của storeAPI đến middleware: dispatch(action) và getState()
+- Nó làm một phần nhỏ của lừa gạt để chắc rằng cái nếu bạn gọi store.dispatch(action) từ middleware thay cho next(action), cái action sẽ thực sự sẽ đi đến cả chuỗi middleware một lần nữa, bao gồm cả middleware hiện tại. ĐIều này hữu dụng cho asynchronous middleware, như chúng đã thấy trước đó. Điều này là 1 lời cảnh báo khi gọi dispatch trong khi cài đặt, đã được mô tả ở dưới
+- Để chắc rằng bạn có thể chỉ áp dụng middleware để createStore() trước khi dùng nó, createStore() chấp nhận một lựa chọn đối số sau cùng để đặc tả/xác định các function như vậy
+
+Cảnh báo: Dispatching trong khi setup
+
+Trong khi applyMiddleware thực thi và cài đặt middleware của bạn, store.dispatch function sẽ chỉ đến bản gốc cung cấp bởi createStore. Dispatching  sẽ có kết quả là ko có middleware khác được áp dụng.
+
+Nếu bạn mở rộng một tương tác với một middleware khác trong khi setup, bạn sẽ có thể bị thất vọng. Bởi vì hành vi ko đc chào đón này, applyMiddleware sẽ ném (throw) 1 lỗi nếu bạn thử dispatch 1 action trước khi cài đặt hoàn thành. Thay vào đó, bạn nên liên lạc trực tiếp với middleware khác đó thông qua common object (cho 1 API gọi middleware, cái này có thể là đối tượng API client của bạn) hoặc chờ đến khi sau khi middleware được dựng xong (constructed) với 1 callback.
+
+Tiếp cận cuối cùng
+
+Đưa ra middleware chúng ta đã viết:
+
+const logger = store => next => action => {
+  console.log('dispatching', action)
+  let result = next(action)
+  console.log('next state', store.getState())
+  return result
+}
+ 
+const crashReporter = store => next => action => {
+  try {
+    return next(action)
+  } catch (err) {
+    console.error('Caught an exception!', err)
+    Raven.captureException(err, {
+      extra: {
+        action,
+        state: store.getState()
+      }
+    })
+    throw err
+  }
+}
+
+Ở đây áp dụng nó như thế nào để a Redux store:
+
+import { createStore, combineReducers, applyMiddleware } from 'redux'
+ 
+let todoApp = combineReducers(reducers)
+let store = createStore(
+  todoApp,
+  // applyMiddleware() tells createStore() how to handle middleware
+  applyMiddleware(logger, crashReporter)
+)
+
+Nó đó! bây h bất kỳ actions dispatched để khởi tạo store sẽ chảy qua logger và crashReporter
+
+// Sẽ chảy qua cả logger và crashReporter middleware
+store.dispatch(addTodo('Use Redux'))
+
+Ví dụ thứ 7
+
+Nếu đầu mày nóng từ đọc section trên, tưởng tượng rằng nó được viết thế. Section này như 1 sự thư giãn giúp cho mấy cái bánh răng của tao và mày quay ngược trở lại - troll nhau vồn
+
+Mỗi function dưới đây là Redux middleware hợp lệ. Chúng không hữu ích như nhau, nhưng ít nhất chúng vui như nhau
+
+/**
+ * Logs tất cả actions và states sau khi chúng được dispatched.
+ */
+
+ const logger = store => next => action => {
+  console.group(action.type)
+  console.info('dispatching', action)
+  let result = next(action)
+  console.log('next state', store.getState())
+  console.groupEnd(action.type)
+  return result
+}
+
+/**
+ * Gửi crash reports như state được cập nhật và người nghe được thông báo
+ */
+
+ const crashReporter = store => next => action => {
+  try {
+    return next(action)
+  } catch (err) {
+    console.error('Caught an exception!', err)
+    Raven.captureException(err, {
+      extra: {
+        action,
+        state: store.getState()
+      }
+    })
+    throw err
+  }
+}
+
+/**
+ * Schedules actions with { meta: { delay: N } } to be delayed by N milliseconds.
+ * Makes `dispatch` return a function to cancel the timeout in this case.
+ */
+ const rafScheduler = store => next => {
+  let queuedActions = []
+  let frame = null
+ 
+  function loop() {
+    frame = null
+    try {
+      if (queuedActions.length) {
+        next(queuedActions.shift())
+      }
+    } finally {
+      maybeRaf()
+    }
+  }
+ 
+  function maybeRaf() {
+    if (queuedActions.length && !frame) {
+      frame = requestAnimationFrame(loop)
+    }
+  }
+ 
+  return action => {
+    if (!action.meta || !action.meta.raf) {
+      return next(action)
+    }
+ 
+    queuedActions.push(action)
+    maybeRaf()
+ 
+    return function cancel() {
+      queuedActions = queuedActions.filter(a => a !== action)
+    }
+  }
+}
+/**
+ * Lets you dispatch promises in addition to actions.
+ * If the promise is resolved, its result will be dispatched as an action.
+ * The promise is returned from `dispatch` so the caller may handle rejection.
+ */
+const vanillaPromise = store => next => action => {
+  if (typeof action.then !== 'function') {
+    return next(action)
+  }
+ 
+  return Promise.resolve(action).then(store.dispatch)
+}
+
+/**
+ * Lets you dispatch promises in addition to actions.
+ * If the promise is resolved, its result will be dispatched as an action.
+ * The promise is returned from `dispatch` so the caller may handle rejection.
+ */
+const vanillaPromise = store => next => action => {
+  if (typeof action.then !== 'function') {
+    return next(action)
+  }
+ 
+  return Promise.resolve(action).then(store.dispatch)
+}
+
+/**
+ * Lets you dispatch special actions with a { promise } field.
+ *
+ * This middleware will turn them into a single action at the beginning,
+ * and a single success (or failure) action when the `promise` resolves.
+ *
+ * For convenience, `dispatch` will return the promise so the caller can wait.
+ */
+
+ const readyStatePromise = store => next => action => {
+  if (!action.promise) {
+    return next(action)
+  }
+ 
+  function makeAction(ready, data) {
+    let newAction = Object.assign({}, action, { ready }, data)
+    delete newAction.promise
+    return newAction
+  }
+ 
+  next(makeAction(false))
+  return action.promise.then(
+    result => next(makeAction(true, { result })),
+    error => next(makeAction(true, { error }))
+  )
+}
+
+/**
+ * Lets you dispatch a function instead of an action.
+ * This function will receive `dispatch` and `getState` as arguments.
+ *
+ * Useful for early exits (conditions over `getState()`), as well
+ * as for async control flow (it can `dispatch()` something else).
+ *
+ * `dispatch` will return the return value of the dispatched function.
+ */
+
+ const thunk = store => next => action =>
+  typeof action === 'function'
+    ? action(store.dispatch, store.getState)
+    : next(action)
+ 
+// You can use all of them! (It doesn't mean you should.)
+
+let todoApp = combineReducers(reducers)
+let store = createStore(
+  todoApp,
+  applyMiddleware(
+    rafScheduler,
+    timeoutScheduler,
+    thunk,
+    vanillaPromise,
+    readyStatePromise,
+    logger,
+    crashReporter
+  )
+)

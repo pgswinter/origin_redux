@@ -1,0 +1,137 @@
+Chúng ta dùng fetch API trong ví dụ. Nó là một API mới để tạo ra các yêu cầu network để thay thế cho XMLHttpRequest cho những thứ cần thiết chung nhất. Bởi vì hầu hết các browsers chưa cần yêu cầu hỗ trợ một các tự nhiên, chúng tôi đề nghị bạn dùng thư viện cross-fetch:
+
+// Làm điều này trong mỗi file bạn sử dụng `fetch`
+import fetch from 'cross-fetch'
+
+// *** window.fetch polyfill
+
+polyfill: các đoạn code được sử dụng cho trình duyệt cũ
+
+The fetch() functions là một cơ chế Promise-based cho việc lập trình tạo nen web request trong browser. Dự án là một polyfill cái triển khai một bộ tiêu chuẩn  Fetch specification, đủ để tạo ra fetch một khả năng thay thế cho XMLHttpRequest trong ứng dụng web truyền thống
+
+// *** window.fetch polyfill
+
+Bên trong, nó dùng whatwg-fetch polyfill trên client, và node-fetch trên server, nên bạn không cần thay đổi API gọi nếu bạn thay đổi app của bạn thành universal.
+
+Phải nhận biết rằng bất kỳ fetch polyfill giả dụ như 1 Promise polyfill đã có sẵn. Cách dễ nhất để chắc rằng bạn có một Promise polufill là kích hoạt Babel's ES^ polyfill trong entry point trước bất kỳ đoạn code nào:
+
+// Làm điều này trước khi có bất kỳ đoạn code nào trong app của bạn
+import 'babel-polyfill'
+
+Làm cách nào để chúng ta bao gồm Redux Thunk middleware  trong cơ chế dispatch? Chúng ta dùng applyMiddleware() store tăng cường (enhancer) từ Redux, như chỉ dẫn bên dưới:
+
+index.js
+
+import thunkMiddleware from 'redux-thunk'
+import { createLogger } from 'redux-logger'
+import { createStore, applyMiddleware } from 'redux'
+import { selectSubreddit, fetchPosts } from './actions'
+import rootReducer from './reducers'
+
+const loggerMiddleware = createLogger()
+
+const store = createStore(
+  rootReducer,
+  applyMiddleware(
+    thunkMiddleware, // để chúng ta dispatch() functions
+    loggerMiddleware // xếp gọn middleware cái logs actions
+  )
+)
+
+store.dispatch(selectSubreddit('reactjs'))
+store
+  .dispatch(fetchPosts('reactjs')).then(() => console.log(store.getState()))
+
+Một thứ tốt về THUNKS là chúng có thể dispatch kết quả của nhau
+
+actions.js (with fetch)
+
+import fetch from 'cross-fetch'
+
+export const REQUEST_POSTS = 'REQUEST_POSTS'
+function requestPosts(subreddit){
+	return {
+    type: REQUEST_POSTS,
+    subreddit
+  }
+}
+ 
+export const RECEIVE_POSTS = 'RECEIVE_POSTS'
+function receivePosts(subreddit, json) {
+	return {
+    type: RECEIVE_POSTS,
+    subreddit,
+    posts: json.data.children.map(child => child.data),
+    receivedAt: Date.now()
+  }
+}
+
+export const INVALIDATE_SUBREDDIT = 'INVALIDATE_SUBREDDIT'
+export function invalidateSubreddit(subreddit) {
+  return {
+    type: INVALIDATE_SUBREDDIT,
+    subreddit
+  }
+}
+
+function fetchPosts(subreddit) {
+	 return dispatch => {
+	 	dispatch(requestPosts(subreddit))
+	 	return fetch(`https://www.reddit.com/r/${subreddit}.json`)
+	 		.then(response => response.json())
+	 		.then(json => dispatch(receivePosts(subreddit, json)))
+	 }
+}
+
+function shouldFetchPosts(state, subreddit) {
+	const posts = state.postsBySubreddit[subreddit]
+	if (!posts) {
+    return true
+  } else if (posts.isFetching) {
+    return false
+  } else {
+    return posts.didInvalidate
+  }
+}
+
+export function fetchPostsIfNeeded(subreddit) {
+	// Lưu ý function cũng nhận getState()
+	// cái để bạn chọn cái để dispatch tiếp theo
+
+	// Điều này hữu ích cho việc tránh yêu cầu network nếu
+	// một dữ liệu cached đã sẵn sàng
+
+	return (dispatch, getState) => {
+		if (shouldFetchPosts(getState(), subreddit)) {
+			// Dispatch một thunk từ thunk!
+			return dispatch(fetchPosts(subreddit))
+		} else{
+			// Hãy gọi code để biết rằng ở đây ko có gì để chờ.
+			return Promise.resolve()
+		}
+	}
+}
+
+Điều này để ta viết tăng(gradually)thêm độ phức tạp của async control flow, trong khi tiêu tốn/dùng (consuming) code có thể đẹp hơn với cùng một cách
+
+index.js
+
+store.dispatch(fetchPostsIfNeeded('reactjs').then(()=>console.log(store.getState())))
+
+Lưu ý về Server Rendering
+
+Async action creators được đặc tả thuận lợi cho server rendering. Bạn có thể tạo store, dispatch một a single async action creator cái dispatches một async action creators khác để lấy data cho toàn bộ phần của ứng dụng, và chỉ render sau khi Promise trả về hoàn thành. Sau đó store của bạn sẽ sẵn sàng nhận với state bạn cần trước khi rendering
+
+Thunk middleware không chỉ mỗi cách để cấu trúc nên (orchestrate) asynchronous actions trong Redux
+
+- Bạn có thể dùng  redux-promise or redux-promise-middleware  để dispatch Promises thay vì các functions.
+- Bạn có thể dùng redux-observable để dispatch Observables
+- Bạn có thể dùng redux-saga middleware để xây dựng nhiều asynchronous actions phức tạp hơn
+- Bạn có thể dùng reudx-pack middleware để dispatch promise-based asynchronous actions.
+- Bạn có thể viết một middleware tùy chính để đặc tả gọi đến API của mình
+
+Nó dựa vào ban để thử mộ vài sự lựa chọn, chọn một hay ho bạn thích, và đi theo nó, dù ở có hay không có middleware.
+
+Connecting với UI
+
+Dispatching async actions là không khác biệt từ  synchronous actions, nên chúng ta sẽ không cần tập trung vào chi tiết. Xem lại  Usage with React 

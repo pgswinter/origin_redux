@@ -1,0 +1,32 @@
+***
+1. Khi lấy dữ liệu từ store thì dùng mapStateToProps, cách lấy mỗi function từ state làm theo syntax sau:
+
+const { <name_function01_in_reducers>,<name_function02_in_reducers> } = state
+
+2. Sau khi lấy ra thì nhớ dùng connect
+
+connect(mapStateToProps)(<name_of_app>)
+
+3. Để bắt đầu dùng thì dùng theo syntax:
+
+const { <name_function01_in_reducers>,<name_function02_in_reducers> } = this.props
+
+***
+Cơ bản là
+- Để dùng function trong reducer thì dùng: const {<name_func>} = this.prop
+- Để dùng function trong action thì dùng: this.props.dispatch(<name_func>)
+
+***
+Link convert ES6 to ES5: https://babeljs.io/
+
+***
+bây h hiểu rồi,
+-mọi thứ trong mapStateToProps đều trả về object. lấy từ reducer.
+- những object này tách ra từng biến và trở thành props
+- các thuộc tính trong this.props là bất biến. Chúng được sử dụng bằng cách:
+	+ Tạo ra một biến mới cùng tên với thuộc tính
+	+ Và bằng với giá trị thuộc tính đó: 
+
+	selectedSubreddit = this.props.selectedSubreddit
+
+
