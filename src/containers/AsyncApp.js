@@ -13,7 +13,7 @@ class AsyncApp extends Component {
   constructor(props){
     super(props)
     this.handleChange = this.handleChange.bind(this)
-    // this.handleRefreshClick = this.handleRefreshClick.bind(this)
+    this.handleRefreshClick = this.handleRefreshClick.bind(this)
   }
 
   componentDidMount(){
@@ -41,34 +41,54 @@ class AsyncApp extends Component {
     this.props.dispatch(fetchPostsIfNeeded(nextSubreddit))
   }
 
-  // handleRefreshClick(e){
-  //   e.preventDefault()
+  handleRefreshClick(e){
+    e.preventDefault()
 
-  //   const {dispatch, selectedSubreddit} = this.props
-  //   dispatch(invalidateSubreddit(selectedSubreddit))
-  //   dispatch(fetchPostsIfNeeded(selectedSubreddit))
-  // }
+    const {dispatch, selectedSubreddit} = this.props
+    dispatch(invalidateSubreddit(selectedSubreddit))
+    dispatch(fetchPostsIfNeeded(selectedSubreddit))
+  }
 
   render(){
-    // const {selectedSubreddit, lastUpdated} = this.props
+    // Đây là ES6
+    // const selectedSubreddit, posts, isFetching, lastUpdated} = this.props
+    // Viết kiểu ES5 - browser sẽ render ra cái này
     const selectedSubreddit = this.props.selectedSubreddit
     const lastUpdated = this.props.lastUpdated
+    const isFetching = this.props.isFetching
+    const posts = this.props.posts
     console.log(lastUpdated)
+    console.log(isFetching)
+    console.log(posts)
     return (
       <div className="">
         <Picker
           value={selectedSubreddit}
           onChange={this.handleChange}
-          options={['reactjs'],['frontend']}
+          options={['reactjs','frontend']}
         />
+
         <p>
           {lastUpdated && 
             <span>
               Last updated at {new Date(lastUpdated).toLocaleTimeString()}.
               {' '}
-            </span>
+            </span>}
+          {
+            !isFetching &&
+            <a href="#" onClick={this.handleRefreshClick}>
+              Refresh
+            </a>
           }
         </p>
+        {isFetching && posts.length === 0 && <h2>Loading...</h2>}
+        {!isFetching && posts.length === 0 && <h2>Empty.</h2>}
+        {
+          posts.length > 0 &&
+          <div style={{opacity: isFetching ? 0.5 : 1}}>
+            <Posts posts={posts} />
+          </div>
+        }
       </div>
     )
   }
@@ -81,15 +101,17 @@ function mapStateToProps(state) {
   // Hoặc viết theo kiểu ES6
   const { selectedSubreddit, postsBySubreddit } = state
 
+  // es5
   var _ref = postsBySubreddit[selectedSubreddit] || {
     isFetching: true,
     items: []
   }
   console.log(_ref)
   var isFetching = _ref.isFetching,
-      items = _ref.items,
-      lastUpdated = _ref.lastUpdated
-  console.log(isFetching)
+      lastUpdated = _ref.lastUpdated,
+      posts = _ref.items
+  console.log(posts)
+  // es6
   // const {
   //   isFetching,
   //   lastUpdated,
@@ -101,9 +123,9 @@ function mapStateToProps(state) {
 
   return {
     selectedSubreddit,
-    // posts,
-    // isFetching,
-    // lastUpdated
+    posts,
+    isFetching,
+    lastUpdated
   }
 
 }

@@ -15,7 +15,7 @@ const { <name_function01_in_reducers>,<name_function02_in_reducers> } = this.pro
 Cơ bản là
 - Để dùng function trong reducer thì dùng: const {<name_func>} = this.prop
 - Để dùng function trong action thì dùng: this.props.dispatch(<name_func>)
-
+- dispatch ở đâu sao nó có, lấy trong thằng state ở hàm mapStateToProps chứ đâu. Thế thằng state lấy props ở đâu. Trong store chứ đâu. Thế thằng store có dispatch ở đâu. Trong reducer. Thế reducer lấy ở đâu. Mọe nó sinh ra đã thế rồi. Không thì làm sao gọi action. Thế thôi
 ***
 Link convert ES6 to ES5: https://babeljs.io/
 
